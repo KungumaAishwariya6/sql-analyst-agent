@@ -1,0 +1,11 @@
+# Day 1 (database, guard, tools, tests)
+pytest>=8.0
+
+# Day 2 (agent) - install when we get there
+# langgraph
+# langchain-anthropic
+# python-dotenv
+# pydantic
+
+# Day 3 (evals)
+# pyyaml
