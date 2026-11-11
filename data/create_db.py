@@ -25,14 +25,16 @@ import sqlite3
 from datetime import date, timedelta
 from pathlib import Path
 
-SEED = 42
+SEED = 42  # fixed seed -> identical data on every run
 DEFAULT_DB_PATH = Path(__file__).resolve().parent / "sample.db"
 
+# Size of the generated dataset and the date range orders are spread over.
 N_CUSTOMERS = 200
 N_ORDERS = 1500
 ORDER_START = date(2025, 1, 1)
 ORDER_END = date(2026, 9, 30)
 
+# Table definitions. Inline `--` comments document allowed values and quirks.
 SCHEMA = """
 CREATE TABLE categories (
     category_id INTEGER PRIMARY KEY,
@@ -136,6 +138,7 @@ PRODUCTS = [
     ("Last Year Planner", "Books", 15.00),
     ("Retro Sneakers", "Clothing", 72.00),
 ]
+# These products stop selling after 2025 (see the order generation loop below).
 DISCONTINUED = {"Old Model Phone", "Vintage Lamp", "Last Year Planner", "Retro Sneakers"}
 
 FIRST_NAMES = [
@@ -153,10 +156,12 @@ RETURN_REASONS = ["defective", "wrong_item", "changed_mind", "late_delivery"]
 
 
 def _random_date(rng: random.Random, start: date, end: date) -> date:
+    """Pick a uniformly random date between `start` and `end` (inclusive)."""
     return start + timedelta(days=rng.randint(0, (end - start).days))
 
 
 def _make_customers(rng: random.Random) -> list[tuple]:
+    """Build customer rows, including NULL emails and a few duplicate customers."""
     rows: list[tuple] = []
     for cid in range(1, N_CUSTOMERS + 1):
         first, last = rng.choice(FIRST_NAMES), rng.choice(LAST_NAMES)
@@ -218,6 +223,7 @@ def build_database(path: Path | str = DEFAULT_DB_PATH) -> Path:
         for order_id in range(1, N_ORDERS + 1):
             order_date = _random_date(rng, ORDER_START, ORDER_END)
             roll = rng.random()
+            # Order status mix: 78% completed, 10% cancelled, 5% refunded, 7% pending.
             status = (
                 "completed" if roll < 0.78
                 else "cancelled" if roll < 0.88
@@ -225,6 +231,7 @@ def build_database(path: Path | str = DEFAULT_DB_PATH) -> Path:
                 else "pending"
             )
 
+            # 1-4 line items per order (small orders are most common).
             order_items = []
             for _ in range(rng.choice([1, 1, 1, 2, 2, 3, 4])):
                 pid = rng.choices(product_ids, weights=weights)[0]
@@ -236,6 +243,8 @@ def build_database(path: Path | str = DEFAULT_DB_PATH) -> Path:
                 item_id += 1
                 order_items.append((item_id, order_id, pid, qty, unit_price, round(qty * unit_price, 2)))
 
+            # ~20% of orders get a 5/10/15% discount; the rest keep discount = NULL.
+            # orders.total is net of discount, unlike order_items.amount.
             subtotal = sum(i[5] for i in order_items)
             discount = round(subtotal * rng.choice([0.05, 0.10, 0.15]), 2) if rng.random() < 0.2 else None
             total = round(subtotal - (discount or 0), 2)
@@ -255,6 +264,7 @@ def build_database(path: Path | str = DEFAULT_DB_PATH) -> Path:
                             (return_id, it[0], r_date.isoformat(), rng.choice(RETURN_REASONS), r_status, refund)
                         )
 
+        # Insert children after parents so foreign keys always point at real rows.
         conn.executemany("INSERT INTO orders VALUES (?, ?, ?, ?, ?, ?)", orders)
         conn.executemany("INSERT INTO order_items VALUES (?, ?, ?, ?, ?, ?)", items)
         conn.executemany("INSERT INTO returns VALUES (?, ?, ?, ?, ?, ?)", returns)
@@ -265,6 +275,7 @@ def build_database(path: Path | str = DEFAULT_DB_PATH) -> Path:
 
 
 def main() -> None:
+    """CLI entry point: build the database and print a row count per table."""
     parser = argparse.ArgumentParser(description="Generate the sample e-commerce SQLite database.")
     parser.add_argument("--out", default=str(DEFAULT_DB_PATH), help="output .db path")
     args = parser.parse_args()

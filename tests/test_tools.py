@@ -1,3 +1,6 @@
+"""Tests for the agent tools, run against a freshly generated sample database
+(the `db_path` fixture in conftest.py)."""
+
 import sqlite3
 
 import pytest
@@ -26,6 +29,7 @@ def test_describe_unknown_table_lists_alternatives(db_path):
     assert "orders" in text
 
 
+# The table name is only interpolated into SQL after an exact-match check.
 def test_describe_table_rejects_injection_attempt(db_path):
     text = describe_table('orders"; DROP TABLE orders; --', db_path)
     assert text.startswith("ERROR")
@@ -73,6 +77,7 @@ def test_run_sql_empty_result(db_path):
 
 
 def test_run_sql_timeout(db_path):
+    # An infinite recursive CTE: only the timeout (layer 3) can stop it.
     runaway = (
         "WITH RECURSIVE r(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM r) "
         "SELECT COUNT(*) FROM r"
@@ -97,6 +102,7 @@ def test_missing_database_has_helpful_error(tmp_path):
         list_tables(tmp_path / "nope.db")
 
 
+# Same seed -> same data, so eval answers stay reproducible across machines.
 def test_database_is_deterministic(tmp_path):
     a = build_database(tmp_path / "a.db")
     b = build_database(tmp_path / "b.db")
@@ -104,6 +110,7 @@ def test_database_is_deterministic(tmp_path):
     assert run_sql(query, a).rows == run_sql(query, b).rows
 
 
+# Guards against someone "cleaning" the data: the mess is what tests the agent.
 def test_sample_data_has_intended_messiness(db_path):
     null_emails = run_sql("SELECT COUNT(*) FROM customers WHERE email IS NULL", db_path).rows[0][0]
     dupes = run_sql(

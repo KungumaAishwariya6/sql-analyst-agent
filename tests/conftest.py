@@ -1,3 +1,5 @@
+"""Shared pytest fixtures."""
+
 import pytest
 
 from data.create_db import build_database

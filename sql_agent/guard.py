@@ -28,6 +28,9 @@ FORBIDDEN_KEYWORDS = {
     "load_extension",
 }
 
+# Allow-list: a query must begin with one of these (WITH covers CTEs).
+# An allow-list is safer than only blocking bad words, because unknown
+# statements such as EXPLAIN are rejected by default.
 _ALLOWED_START = ("select", "with")
 
 
@@ -88,13 +91,17 @@ def validate_sql(query: str) -> str:
     code = _code_only(query).strip()
     code = code.rstrip("; \t\r\n")  # a single trailing semicolon is fine
 
+    # Any semicolon left now separates two statements (stacked-query attack).
     if ";" in code:
         raise UnsafeSQLError("Only one SQL statement is allowed (found ';').")
 
+    # Check 1: the statement must start with an allowed word.
     first_word = re.match(r"[a-zA-Z_]+", code)
     if not first_word or first_word.group(0).lower() not in _ALLOWED_START:
         raise UnsafeSQLError("Only SELECT queries (optionally starting with WITH) are allowed.")
 
+    # Check 2: no forbidden keyword anywhere, even after WITH (e.g. a CTE
+    # followed by DELETE). Whole-word matching means `update_date` is fine.
     for word in re.findall(r"[a-zA-Z_][a-zA-Z0-9_]*", code):
         if word.lower() in FORBIDDEN_KEYWORDS:
             raise UnsafeSQLError(f"Keyword '{word.upper()}' is not allowed; this database is read-only.")

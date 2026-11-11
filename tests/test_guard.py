@@ -1,8 +1,11 @@
+"""Tests for the SQL safety guard: safe queries pass, attacks are rejected."""
+
 import pytest
 
 from sql_agent.guard import UnsafeSQLError, validate_sql
 
 
+# Queries that look risky but are legitimate (false-positive checks).
 @pytest.mark.parametrize(
     "query",
     [
@@ -23,6 +26,7 @@ def test_allows_read_only_queries(query):
     assert validate_sql(query)
 
 
+# Writes, schema changes, stacked statements, tricks and malformed input.
 @pytest.mark.parametrize(
     "query",
     [
