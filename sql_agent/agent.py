@@ -52,7 +52,7 @@ def build_graph(model: BaseChatModel | None = None):
     """
     base = model or ChatAnthropic(
         model=config.MODEL_NAME,
-        temperature=0,  # deterministic SQL writing
+        # No temperature setting: this model rejects it ("Extra inputs are not permitted").
         max_tokens=config.MAX_OUTPUT_TOKENS,
     )
     llm = base.bind_tools(AGENT_TOOLS)
