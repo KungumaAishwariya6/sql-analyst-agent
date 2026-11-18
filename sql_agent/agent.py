@@ -40,6 +40,11 @@ Workflow:
 Rules:
 - Only read-only SELECT queries are allowed. Never try to change data.
 - Results are capped at 100 rows. Use aggregates or LIMIT when you can.
+- If run_sql says the results were truncated and the user wants everything,
+  page through them with LIMIT and OFFSET in further run_sql calls, or use
+  COUNT(*) to report the total. Do not present a partial list as complete.
+- Only describe work you actually did. Never say you "pulled" pages or rows
+  that no tool result shows. If you have not fetched something, say so.
 - If the data cannot answer the question, say so instead of guessing.
 - Note that orders.total is net of discount while order_items.amount is not."""
 
@@ -88,18 +93,46 @@ def _text(message: BaseMessage) -> str:
     ).strip()
 
 
-def ask(question: str, graph=None) -> str:
-    """Answer one plain-English question. Returns text; never raises for step limits."""
-    graph = graph or build_graph()
+def _trim_history(messages: list[BaseMessage]) -> list[BaseMessage]:
+    """Keep only the last MAX_HISTORY_TURNS question/answer turns.
+
+    A turn starts at a HumanMessage, so we cut at a question boundary and never
+    split a tool request from its tool result.
+    """
+    starts = [i for i, m in enumerate(messages) if isinstance(m, HumanMessage)]
+    if len(starts) <= config.MAX_HISTORY_TURNS:
+        return messages
+    return messages[starts[-config.MAX_HISTORY_TURNS]:]
+
+
+def ask_with_history(
+    question: str, graph, history: list[BaseMessage] | None = None
+) -> tuple[str, list[BaseMessage]]:
+    """Answer a question in the context of earlier turns.
+
+    Returns (answer_text, new_history). Pass new_history into the next call so
+    follow-up questions like "add the customer name" can see earlier results.
+    If the step limit is hit, the failed turn is not added to the history.
+    """
+    history = history or []
     try:
         result = graph.invoke(
-            {"messages": [HumanMessage(question)]},
+            {"messages": history + [HumanMessage(question)]},
             {"recursion_limit": config.MAX_AGENT_STEPS},
         )
     except GraphRecursionError:
-        return (
+        answer = (
             f"Stopped after {config.MAX_AGENT_STEPS} steps without a final answer. "
             "Try a more specific question."
         )
-    final = result["messages"][-1]
-    return _text(final) if isinstance(final, AIMessage) else str(final.content)
+        return answer, history
+    messages = result["messages"]
+    final = messages[-1]
+    answer = _text(final) if isinstance(final, AIMessage) else str(final.content)
+    return answer, _trim_history(messages)
+
+
+def ask(question: str, graph=None) -> str:
+    """Answer one plain-English question with no earlier context. Returns text."""
+    answer, _ = ask_with_history(question, graph or build_graph())
+    return answer

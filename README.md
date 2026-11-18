@@ -5,8 +5,8 @@ schema, writes SQL, runs it read-only, recovers from its own errors, and answers
 
 Built with **LangGraph**, **LangChain**, **Claude** (via `langchain-anthropic`) and **SQLite**.
 
-> **Status:** Days 1 and 2 are done (database, safety guard, tools, agent, CLI, tests).
-> Day 3, the eval suite comparing a single prompt with the agent loop, is next.
+> **Status:** Working end to end. The agent answers questions against the sample
+> database, and an eval suite measures it against a single-prompt baseline.
 
 ## Why an agent and not a single prompt?
 
@@ -47,7 +47,23 @@ sql_agent/config.py             paths, limits, model name, .env loading
 sql_agent/__main__.py           interactive chat (python -m sql_agent)
 data/create_db.py               generates the sample e-commerce SQLite database
 tests/                          pytest suite (guard, tools, agent with a scripted fake model)
+evals/cases.yaml                eval questions with expected answers (checked against the sample DB)
+evals/grading.py                loads cases and checks answers (numbers, phrases)
+evals/baseline.py               single-prompt baseline: one SQL attempt, no retries
+evals/run_evals.py              runs cases in both modes, writes evals/results/*.json
 ```
+
+## Evals
+
+```bash
+.venv/bin/python -m evals.run_evals                  # agent and baseline, all cases
+.venv/bin/python -m evals.run_evals --mode agent     # one mode only
+.venv/bin/python -m evals.run_evals --case refuse_delete
+```
+
+These call the API, so they need `ANTHROPIC_API_KEY`. Each run prints a pass/fail
+table and saves the full answers and checks to `evals/results/`. The run also checks that
+no table's row count changed.
 
 ## Setup
 

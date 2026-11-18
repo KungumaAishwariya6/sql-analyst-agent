@@ -26,3 +26,7 @@ MAX_OUTPUT_TOKENS = 1024
 # Upper bound on graph steps per question. Each tool round uses two steps
 # (model call + tool run), so 20 allows about 10 queries before giving up.
 MAX_AGENT_STEPS = 20
+
+# How many earlier question/answer turns the chat remembers for follow-ups.
+# Older turns are dropped so the prompt doesn't grow without limit.
+MAX_HISTORY_TURNS = 5

@@ -16,4 +16,4 @@ Instructions for working in this repo. For the project overview, see README.md.
 - Tool docstrings in `sql_agent/langchain_tools.py` are prompts for the model. Edit them with that in mind.
 - Don't clean up the sample data in `data/create_db.py`. The mess is what tests the agent.
 - Never commit `.env`, `data/sample.db` or `.venv/`. All are in `.gitignore`.
-- Day 3 (evals in `evals/`, using `pyyaml`) is not built yet.
+- Day 3 evals are in `evals/`. Run them with `.venv/bin/python -m evals.run_evals` (needs an API key). The offline tests for them are in `tests/test_evals.py`.

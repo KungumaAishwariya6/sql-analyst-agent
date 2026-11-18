@@ -101,3 +101,40 @@ def test_agent_stops_when_step_limit_is_reached(db_path, monkeypatch):
     model = ScriptedModel(replies=[_tool_call("list_tables", "c1")])
     answer = ask("loop forever", build_graph(model))
     assert "Stopped after" in answer
+
+
+# --- follow-up context -------------------------------------------------------
+
+def test_follow_up_question_sees_earlier_turn(db_path, monkeypatch):
+    from sql_agent.agent import ask_with_history
+    from langchain_core.messages import HumanMessage
+
+    _use_test_db(monkeypatch, db_path)
+    model = ScriptedModel(replies=[AIMessage(content="There are 206 customers.")])
+    graph = build_graph(model)
+
+    _, history = ask_with_history("How many customers are there?", graph)
+    answer, history = ask_with_history("Now list their names", graph, history)
+
+    # The second model call received the first question in its input.
+    assert model.calls == 2
+    assert any(isinstance(m, HumanMessage) and "How many customers" in m.content
+               for m in history)
+    assert answer == "There are 206 customers."
+
+
+def test_history_is_trimmed_to_recent_turns(db_path, monkeypatch):
+    from sql_agent.agent import ask_with_history
+    from langchain_core.messages import HumanMessage
+
+    _use_test_db(monkeypatch, db_path)
+    monkeypatch.setattr(config, "MAX_HISTORY_TURNS", 2)
+    model = ScriptedModel(replies=[AIMessage(content="ok")])
+    graph = build_graph(model)
+
+    history = []
+    for i in range(4):
+        _, history = ask_with_history(f"question {i}", graph, history)
+
+    questions = [m.content for m in history if isinstance(m, HumanMessage)]
+    assert questions == ["question 2", "question 3"]
