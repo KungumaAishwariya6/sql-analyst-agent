@@ -57,7 +57,7 @@ def _code_only(sql: str) -> str:
                 raise UnsafeSQLError("Unterminated comment.")
             i = end + 2
             out.append(" ")
-        elif ch in ("'", '"', "`", "["):  # quoted string / identifier
+        elif ch in ("'", '"', "`", "["):  # quoted string, identifier, or [bracketed] name (SQL Server style)
             closer = "]" if ch == "[" else ch
             j = i + 1
             while True:
@@ -106,4 +106,6 @@ def validate_sql(query: str) -> str:
         if word.lower() in FORBIDDEN_KEYWORDS:
             raise UnsafeSQLError(f"Keyword '{word.upper()}' is not allowed; this database is read-only.")
 
+    # Return the original text, not `code`. `code` has string contents blanked out,
+    # so returning it would change the query the agent asked for.
     return query.strip().rstrip(";").rstrip()

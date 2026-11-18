@@ -48,6 +48,8 @@ def ask_single_prompt(question: str, model) -> str:
         HumanMessage(question),
     ]))
     sql = extract_sql(sql_reply)
+    # A failed query is not retried. Its "ERROR: ..." text is passed to the answer call,
+    # so the answer can report the failure.
     result = db.run_sql(sql).to_text()
     return _text(model.invoke([
         SystemMessage(ANSWER_PROMPT),

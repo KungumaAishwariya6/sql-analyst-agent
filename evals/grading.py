@@ -66,6 +66,8 @@ def grade(answer: str, expect: dict) -> list[Check]:
     for spec in expect.get("numbers", []):
         value = float(spec["value"])
         tolerance = float(spec.get("tolerance", 0))
+        # Passes if ANY number in the answer matches, so an unrelated number can
+        # satisfy the check. Keep expected values distinctive to limit this.
         passed = any(abs(n - value) <= tolerance for n in found)
         checks.append(Check(
             name=f"number {value:g}",
@@ -82,6 +84,7 @@ def grade(answer: str, expect: dict) -> list[Check]:
             detail=f"matched {hit[0]!r}" if hit else "none matched",
         ))
 
+    # Plain substring match, case-insensitive. "deleted" also matches "not deleted".
     for phrase in expect.get("not_contains", []):
         present = phrase.lower() in lowered
         checks.append(Check(

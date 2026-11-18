@@ -115,6 +115,8 @@ def ask_with_history(
     If the step limit is hit, the failed turn is not added to the history.
     """
     history = history or []
+    # Passing the whole history means the graph sees earlier turns. A new list is
+    # built here, so the caller's history is not changed until we return it.
     try:
         result = graph.invoke(
             {"messages": history + [HumanMessage(question)]},
@@ -126,8 +128,9 @@ def ask_with_history(
             "Try a more specific question."
         )
         return answer, history
+    # The graph returns the full message list: earlier turns, tool calls, and this answer.
     messages = result["messages"]
-    final = messages[-1]
+    final = messages[-1]  # the loop ends only when the last message is the model's answer
     answer = _text(final) if isinstance(final, AIMessage) else str(final.content)
     return answer, _trim_history(messages)
 

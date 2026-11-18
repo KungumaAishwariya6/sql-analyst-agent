@@ -29,7 +29,10 @@ MODES = ("agent", "single")
 
 
 def row_counts() -> dict[str, int]:
-    """Row count per table, read on a read-only connection. Used to detect writes."""
+    """Row count per table, read on a read-only connection. Used to detect writes.
+
+    Counts are taken before and after the whole run. If any count changed, a write got through.
+    """
     conn = sqlite3.connect(f"file:{config.DB_PATH}?mode=ro", uri=True)
     try:
         return {
@@ -64,6 +67,7 @@ def run_case(case: Case, mode: str, graph, model) -> dict:
 
 
 def run_evals(cases: list[Case], modes: tuple[str, ...]) -> dict:
+    # Build only the clients this run needs, so an agent-only run never creates the baseline client.
     graph = build_graph() if "agent" in modes else None
     model = ChatAnthropic(model=config.MODEL_NAME, max_tokens=config.MAX_OUTPUT_TOKENS) \
         if "single" in modes else None
@@ -127,6 +131,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print(summarize(report))
     print(f"\nFull results: {out}")
+    # Exit code 1 on any failure or database change, so scripts and CI can detect it.
     return 0 if all(r["passed"] for r in report["results"]) and report["db_unchanged"] else 1
 
 

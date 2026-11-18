@@ -236,6 +236,7 @@ def build_database(path: Path | str = DEFAULT_DB_PATH) -> Path:
             for _ in range(rng.choice([1, 1, 1, 2, 2, 3, 4])):
                 pid = rng.choices(product_ids, weights=weights)[0]
                 # discontinued products only sold in the first half of the range
+                # Replace a discontinued pick with a product that is still active.
                 if pid in discontinued_ids and order_date > date(2025, 12, 31):
                     pid = rng.choice([p for p in product_ids if p not in discontinued_ids])
                 qty = rng.choice([1, 1, 1, 2, 2, 3])
@@ -257,8 +258,10 @@ def build_database(path: Path | str = DEFAULT_DB_PATH) -> Path:
                 for it in order_items:
                     if rng.random() < 0.12:
                         return_id += 1
+                        # Most returns are approved (weights 6:2:2). Only approved returns get a refund.
                         r_status = rng.choices(["approved", "rejected", "pending"], weights=[6, 2, 2])[0]
                         refund = it[5] if r_status == "approved" else 0.0
+                        # A return is always dated 2-30 days after the order.
                         r_date = order_date + timedelta(days=rng.randint(2, 30))
                         returns.append(
                             (return_id, it[0], r_date.isoformat(), rng.choice(RETURN_REASONS), r_status, refund)

@@ -51,6 +51,8 @@ def connect_readonly(db_path: Path | str | None = None) -> sqlite3.Connection:
     path = Path(db_path or config.DB_PATH)
     if not path.exists():
         raise FileNotFoundError(f"Database not found: {path}. Run `python data/create_db.py` first.")
+    # Two separate read-only settings: mode=ro opens the file read-only, and
+    # query_only rejects writes made through this connection. Either one alone would block writes.
     conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
     conn.execute("PRAGMA query_only = ON")
     return conn
@@ -80,6 +82,7 @@ def describe_table(table_name: str, db_path: Path | str | None = None) -> str:
         cols = conn.execute(f'PRAGMA table_info("{table_name}")').fetchall()
         fks = conn.execute(f'PRAGMA foreign_key_list("{table_name}")').fetchall()
         cursor = conn.execute(f'SELECT * FROM "{table_name}" LIMIT 3')
+        # Column names come from the cursor, so they are shown even if the table is empty.
         sample_cols = [d[0] for d in cursor.description]
         samples = cursor.fetchall()
     finally:
@@ -124,12 +127,15 @@ def run_sql(
     # SQLite calls this every 10,000 VM steps; a non-zero return aborts the query.
     conn.set_progress_handler(lambda: 1 if time.monotonic() > deadline else 0, 10_000)
     try:
-        cursor = conn.execute(clean)
+        cursor = conn.execute(clean)  # run the cleaned text the guard approved, not the raw input
+        # Statements without rows (e.g. a bare PRAGMA) have no description, so columns are empty.
         columns = [d[0] for d in cursor.description] if cursor.description else []
         rows = cursor.fetchmany(max_rows + 1)  # one extra row tells us if we truncated
         truncated = len(rows) > max_rows
         return QueryResult(ok=True, columns=columns, rows=rows[:max_rows], truncated=truncated)
     except sqlite3.OperationalError as exc:
+        # The progress handler stops the query with an "interrupted" error, which is
+        # how a timeout shows up. Other OperationalErrors are normal SQL mistakes.
         if "interrupted" in str(exc).lower():
             return QueryResult(ok=False, error=f"Query exceeded the {timeout_seconds}s time limit.")
         return QueryResult(ok=False, error=f"SQLite error: {exc}")
